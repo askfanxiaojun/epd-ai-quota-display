@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Quota Display — E-ink directions</title>
+  <style>
+    :root {
+      --ink: #171513;
+      --paper: #fbfaf6;
+      --red: #bc2e2e;
+      --mist: #dedbd2;
+      --soft: #706e69;
+      --canvas: #e9e7e0;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans SC", sans-serif;
+      letter-spacing: -0.02em;
+    }
+
+    .stage {
+      width: min(1180px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 54px 0 70px;
+    }
+
+    .intro {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    .eyebrow { color: var(--red); font-size: 12px; font-weight: 800; letter-spacing: 0.14em; }
+    h1 { margin: 7px 0 0; font-size: clamp(28px, 4vw, 46px); line-height: 1; font-weight: 760; }
+    .intro p { max-width: 340px; margin: 0; color: #5e5b56; line-height: 1.65; font-size: 14px; }
+
+    .control-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #c9c6bd;
+      background: rgba(255,255,255,0.45);
+      margin-bottom: 26px;
+    }
+    .control-label { padding: 0 8px 0 4px; color: var(--soft); font-size: 12px; font-weight: 700; }
+    button {
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      padding: 9px 13px;
+      color: #615e58;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    button:hover, button[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); background: var(--paper); }
+    button[aria-pressed="true"] { box-shadow: 3px 3px 0 var(--ink); }
+
+    .preview-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 246px; gap: 42px; align-items: center; }
+    .preview { min-width: 0; background: #d8d5cd; padding: clamp(28px, 5vw, 70px); display: grid; place-items: center; border: 1px solid #c5c1b7; }
+    .device-caption { font-size: 11px; color: #77736d; text-transform: uppercase; letter-spacing: .13em; margin-top: 14px; text-align: center; }
+    .design-note { border-top: 2px solid var(--ink); padding-top: 12px; }
+    .design-note .number { color: var(--red); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 800; }
+    .design-note h2 { margin: 7px 0 10px; font-size: 22px; line-height: 1; }
+    .design-note p { margin: 0; color: #5f5c56; font-size: 13px; line-height: 1.65; }
+    .tokens { margin-top: 22px; display: grid; gap: 8px; }
+    .token { display:flex; align-items:center; gap:9px; font-size:12px; color:#605d57; }
+    .swatch { width: 13px; height: 13px; border-radius: 50%; border: 1px solid #4e4b46; }
+
+    .eink {
+      width: 400px;
+      height: 300px;
+      position: relative;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 11px 12px 0 rgba(24,22,19,.18), 0 0 0 1px var(--ink);
+      font-variant-numeric: tabular-nums;
+      transform-origin: center;
+    }
+    .eink * { box-sizing: border-box; }
+    .display-topline { position: absolute; top: 14px; left: 18px; right: 18px; display:flex; align-items:center; gap:7px; font-size:10px; font-weight:800; letter-spacing:.11em; }
+    .display-topline .header-context { color:#6c6862; font-size:8px; letter-spacing:.13em; }
+    .display-topline .live { margin-left:auto; }
+    .live { color: var(--red); }
+    .footer { position:absolute; bottom:10px; left:18px; right:18px; border-top:1px solid var(--ink); padding-top:6px; display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#5e5b55; }
+
+    /* 01 — Ledger: the recommended reading-first direction. */
+    .ledger { display: grid; grid-template-rows: 42px 105px 105px 36px; padding: 0 18px; }
+    .ledger .display-topline { position: static; align-self:center; }
+    .provider-section { border-top: 2px solid var(--ink); padding: 7px 0 6px; display:grid; grid-template-rows: 21px 1fr; }
+    .provider-header { display:flex; align-items:baseline; justify-content:space-between; font-size:14px; font-weight:850; letter-spacing:.09em; }
+    .provider-header small { color:#67645e; font-size:10px; letter-spacing:.06em; }
+    .provider-windows { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .quota-window { padding-top:4px; border-top:1px solid var(--ink); display:grid; grid-template-columns:1fr auto; grid-template-rows: 1fr 9px 15px; align-items:end; }
+    .quota-window .window-name { align-self:start; font-size:11px; font-weight:850; letter-spacing:.07em; }
+    .quota-window .window-value { padding-bottom:4px; font-size:30px; line-height:.76; font-weight:850; letter-spacing:-.09em; }
+    .quota-window .window-value span { font-size:13px; letter-spacing:0; margin-left:2px; }
+    .quota-bar { grid-column:1 / -1; height:7px; border:1px solid var(--ink); background:var(--paper); overflow:hidden; align-self:center; }
+    .quota-bar span { display:block; height:100%; background:var(--ink); }
+    .quota-window .window-reset { grid-column:1 / -1; align-self:end; color:#67645e; font-size:10px; font-weight:700; }
+    .provider-section.is-pending .provider-header, .provider-section.is-pending .window-value { color:var(--red); }
+    .provider-section.is-pending .quota-window { border-top-style:dashed; }
+    .provider-section.is-pending .quota-bar { border-color:var(--red); border-style:dashed; }
+    .provider-section.is-pending .window-reset { color:#7b7770; }
+
+    /* 02 — Split: a bolder dual-provider status board. */
+    .split { padding: 0 17px; display:grid; grid-template-rows: 54px 1fr 38px; }
+    .split .display-topline { position:static; align-self:center; }
+    .split-grid { display:grid; grid-template-columns:1fr 1fr; border-top:2px solid var(--ink); border-bottom:2px solid var(--ink); }
+    .provider { padding:16px 12px 11px 0; display:flex; flex-direction:column; justify-content:space-between; }
+    .provider + .provider { border-left:1px solid var(--ink); padding-left:16px; }
+    .provider-name { font-size:11px; font-weight:850; letter-spacing:.1em; }
+    .provider-big { font-size:57px; line-height:.8; font-weight:850; letter-spacing:-.1em; }
+    .provider-big span { font-size:13px; letter-spacing:0; margin-left:3px; }
+    .provider-detail { font-size:10px; line-height:1.55; color:#625f59; }
+    .provider-detail strong { color:var(--ink); }
+    .split .claude .provider-big { color:var(--red); font-size:31px; letter-spacing:-.05em; }
+    .split .footer { position:static; align-self:center; }
+
+    /* 03 — Horizon: a temporal, at-a-glance runway. */
+    .horizon { padding: 0 18px; display:grid; grid-template-rows: 58px 1fr 40px; }
+    .horizon .display-topline { position:static; align-self:center; }
+    .horizon-main { border-top:2px solid var(--ink); border-bottom:2px solid var(--ink); display:grid; grid-template-columns:112px 1fr; gap:16px; align-items:center; }
+    .horizon-main h3 { margin:0; font-size:12px; letter-spacing:.12em; }
+    .horizon-main .number { color:var(--red); margin-top:7px; font-size:67px; font-weight:850; line-height:.72; letter-spacing:-.11em; }
+    .horizon-main .number span { color:var(--ink); font-size:13px; letter-spacing:0; }
+    .runways { display:grid; gap:18px; }
+    .runway-label { display:flex; justify-content:space-between; margin-bottom:6px; font-size:10px; font-weight:800; }
+    .runway { height:10px; background:repeating-linear-gradient(90deg, var(--mist) 0 6px, var(--paper) 6px 8px); border-left:1px solid var(--ink); }
+    .runway span { display:block; height:100%; background:var(--ink); }
+    .runway.red span { background:var(--red); }
+    .horizon .footer { position:static; align-self:center; }
+
+    .variant-split, .variant-horizon { display:none; }
+    .eink[data-variant="split"] .variant-ledger, .eink[data-variant="horizon"] .variant-ledger { display:none; }
+    .eink[data-variant="split"] .variant-split { display:grid; }
+    .eink[data-variant="horizon"] .variant-horizon { display:grid; }
+
+    @media (max-width: 800px) {
+      .stage { width: min(100% - 28px, 560px); padding-top:30px; }
+      .intro { display:block; }
+      .intro p { margin-top:18px; }
+      .preview-wrap { grid-template-columns:1fr; gap:24px; }
+      .preview { padding: 36px 10px; overflow:hidden; }
+      .eink { transform: scale(min(0.88, calc((100vw - 56px) / 400))); margin: calc(-300px * .06) 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <header class="intro">
+      <div>
+        <div class="eyebrow">E-INK QUOTA DISPLAY · 400 × 300</div>
+        <h1>把配额做成一眼能读懂的状态。</h1>
+      </div>
+      <p>仅使用黑、红、白三色。数字优先于装饰；重置信息紧贴对应窗口；Claude Code 在未配置时仍有明确而克制的位置。</p>
+    </header>
+
+    <nav class="control-bar" aria-label="Layout directions">
+      <span class="control-label">选择版式</span>
+      <button type="button" data-variant="ledger" aria-pressed="true">01 Ledger／推荐</button>
+      <button type="button" data-variant="split" aria-pressed="false">02 Split</button>
+      <button type="button" data-variant="horizon" aria-pressed="false">03 Horizon</button>
+    </nav>
+
+    <section class="preview-wrap" data-screen-label="Quota display directions">
+      <div>
+        <div class="preview">
+          <div class="eink" data-variant="ledger" id="eink-screen">
+            <section class="ledger variant-ledger">
+              <div class="display-topline"><span>AI QUOTA PANEL</span><span class="live">● LIVE</span></div>
+              <section class="provider-section">
+                <div class="provider-header"><span>CODEX</span><small>CONNECTED</small></div>
+                <div class="provider-windows">
+                  <div class="quota-window">
+                    <div class="window-name">5 HOURS</div><div class="window-value">60<span>%</span></div><div class="quota-bar"><span style="width:60%"></span></div><div class="window-reset">resets 01:22</div>
+                  </div>
+                  <div class="quota-window">
+                    <div class="window-name">7 DAYS</div><div class="window-value">85<span>%</span></div><div class="quota-bar"><span style="width:85%"></span></div><div class="window-reset">resets 07-18</div>
+                  </div>
+                </div>
+              </section>
+              <section class="provider-section is-pending">
+                <div class="provider-header"><span>CLAUDE CODE</span><small>NOT CONNECTED</small></div>
+                <div class="provider-windows">
+                  <div class="quota-window">
+                    <div class="window-name">5 HOURS</div><div class="window-value">—</div><div class="quota-bar"><span style="width:0%"></span></div><div class="window-reset">awaiting account</div>
+                  </div>
+                  <div class="quota-window">
+                    <div class="window-name">7 DAYS</div><div class="window-value">—</div><div class="quota-bar"><span style="width:0%"></span></div><div class="window-reset">awaiting account</div>
+                  </div>
+                </div>
+              </section>
+              <div class="footer"><span>UPDATED 2026-07-11 21:01</span><span>AI QUOTA</span></div>
+            </section>
+
+            <section class="split variant-split">
+              <div class="display-topline"><span>AI QUOTA</span><span class="live">● LIVE</span></div>
+              <div class="split-grid">
+                <article class="provider">
+                  <div class="provider-name">CODEX</div>
+                  <div class="provider-big">60<span>%</span></div>
+                  <div class="provider-detail"><strong>5 HOURS LEFT</strong><br>7 DAYS · 85% LEFT<br>next reset 01:22</div>
+                </article>
+                <article class="provider claude">
+                  <div class="provider-name">CLAUDE CODE</div>
+                  <div class="provider-big">—</div>
+                  <div class="provider-detail">NOT CONFIGURED<br><br>Reserve this space for<br>the next account.</div>
+                </article>
+              </div>
+              <div class="footer"><span>UPDATED 21:01</span><span>ONE GLANCE STATUS</span></div>
+            </section>
+
+            <section class="horizon variant-horizon">
+              <div class="display-topline"><span>CODEX CAPACITY</span><span class="live">● LIVE</span></div>
+              <div class="horizon-main">
+                <div><h3>AVAILABLE<br>NOW</h3><div class="number">60<span>%</span></div></div>
+                <div class="runways">
+                  <div><div class="runway-label"><span>5 HOURS</span><span>60% LEFT</span></div><div class="runway"><span style="width:60%"></span></div></div>
+                  <div><div class="runway-label"><span>7 DAYS</span><span>85% LEFT</span></div><div class="runway red"><span style="width:85%"></span></div></div>
+                  <div class="runway-label" style="margin-top:-4px;color:#615e58"><span>CLAUDE CODE</span><span>NOT CONFIGURED</span></div>
+                </div>
+              </div>
+              <div class="footer"><span>UPDATED 21:01</span><span>RESET 01:22</span></div>
+            </section>
+          </div>
+        </div>
+        <div class="device-caption">actual e-ink canvas · 400 × 300</div>
+      </div>
+
+      <aside class="design-note" id="design-note">
+        <div class="number">01 / LEDGER</div>
+        <h2>两位 Provider，一条阅读路径。</h2>
+        <p>Codex 与 Claude Code 各占一个同级区块；每个区块内，5 小时与 7 天窗口等宽并列。Claude 尚未接入时，完整保留其数据位置。</p>
+        <div class="tokens">
+          <div class="token"><span class="swatch" style="background:#171513"></span>主信息与刻度</div>
+          <div class="token"><span class="swatch" style="background:#bc2e2e"></span>次窗口／需要留意</div>
+          <div class="token"><span class="swatch" style="background:#fbfaf6"></span>纸白底色</div>
+        </div>
+      </aside>
+    </section>
+  </main>
+  <script>
+    const notes = {
+      ledger: { number: "01 / LEDGER", title: "两位 Provider，一条阅读路径。", text: "Codex 与 Claude Code 各占一个同级区块；每个区块内，5 小时与 7 天窗口等宽并列。Claude 尚未接入时，完整保留其数据位置。" },
+      split: { number: "02 / SPLIT", title: "双账户，一块状态牌。", text: "将 Codex 与 Claude Code 视为同等重要的两个对象。信息更具对比性，适合未来两个账户都启用时使用。" },
+      horizon: { number: "03 / HORIZON", title: "把剩余配额理解为续航。", text: "用横向跑道表达可用容量，最强调此刻的 5 小时窗口；适合希望先判断“现在还能不能开工”的场景。" }
+    };
+    const screen = document.getElementById("eink-screen");
+    const note = document.getElementById("design-note");
+    document.querySelectorAll("button[data-variant]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const variant = button.dataset.variant;
+        screen.dataset.variant = variant;
+        document.querySelectorAll("button[data-variant]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+        const copy = notes[variant];
+        note.querySelector(".number").textContent = copy.number;
+        note.querySelector("h2").textContent = copy.title;
+        note.querySelector("p").textContent = copy.text;
+      });
+    });
+  </script>
+</body>
+</html>
