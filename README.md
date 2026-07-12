@@ -1,5 +1,9 @@
 # EPD AI Quota Display
 
+项目主页：[https://askfanxiaojun.github.io/epd-ai-quota-display/](https://askfanxiaojun.github.io/epd-ai-quota-display/)
+
+源代码：[https://github.com/askfanxiaojun/epd-ai-quota-display](https://github.com/askfanxiaojun/epd-ai-quota-display)
+
 把 Codex 的真实剩余配额显示在 400×300 黑白红三色墨水屏上，并通过 macOS
 每 30 分钟自动刷新。
 

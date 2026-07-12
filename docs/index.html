@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="通过 macOS、BLE 和 nRF52811，把 Codex 真实剩余配额显示在 400×300 三色墨水屏上。">
+  <meta name="theme-color" content="#f4f1ea">
+  <title>EPD AI 配额屏｜桌面上的 Codex 状态看板</title>
+  <style>
+    :root {
+      --paper: #f4f1ea;
+      --paper-deep: #e9e4da;
+      --ink: #171614;
+      --muted: #6c6861;
+      --line: #d4cec2;
+      --red: #bd2e2e;
+      --red-dark: #8f2020;
+      --white: #fffdf8;
+      --content: 1120px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+
+    .shell { width: min(calc(100% - 40px), var(--content)); margin: 0 auto; }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+      background: color-mix(in srgb, var(--paper) 92%, transparent);
+      backdrop-filter: blur(18px);
+    }
+    .nav {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 28px;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 780; letter-spacing: -.02em; }
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: var(--ink);
+      color: var(--white);
+      font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+    }
+    .brand-mark::after { content: "EPD"; }
+    .nav-links { display: flex; align-items: center; gap: 30px; font-size: 14px; color: #403d38; }
+    .nav-links a { transition: color .18s ease; }
+    .nav-links a:hover { color: var(--red); }
+    .nav-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 15px;
+      border: 1px solid var(--ink);
+      border-radius: 9px;
+      background: var(--ink);
+      color: var(--white);
+      font-weight: 700;
+    }
+    .nav-github::before { content: "↗"; font-size: 13px; }
+
+    .hero {
+      min-height: 720px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(420px, .98fr);
+      align-items: center;
+      gap: 68px;
+      padding: 92px 0 98px;
+    }
+    .kicker {
+      margin: 0 0 24px;
+      color: var(--red);
+      font: 760 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      max-width: 650px;
+      margin: 0;
+      font-size: clamp(50px, 6vw, 78px);
+      line-height: .98;
+      letter-spacing: -.065em;
+      font-weight: 820;
+    }
+    .hero h1 em { color: var(--red); font-style: normal; }
+    .hero-copy {
+      max-width: 600px;
+      margin: 30px 0 0;
+      color: #5d5952;
+      font-size: 18px;
+      line-height: 1.82;
+      text-wrap: pretty;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+    .button {
+      min-height: 50px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 20px;
+      border: 1px solid var(--ink);
+      border-radius: 9px;
+      font-weight: 760;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .button:hover { transform: translateY(-2px); box-shadow: 0 7px 0 rgba(23,22,20,.12); }
+    .button-primary { background: var(--red); border-color: var(--red); color: white; }
+    .button-primary:hover { background: var(--red-dark); }
+    .button-secondary { background: rgba(255,255,255,.38); }
+    .button .arrow { font-size: 17px; }
+    .fact-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 22px;
+      margin-top: 29px;
+      color: #817c73;
+      font-size: 12px;
+    }
+    .fact-row span { display: inline-flex; align-items: center; gap: 8px; }
+    .fact-row span::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+
+    .device-stage {
+      position: relative;
+      min-height: 490px;
+      display: grid;
+      place-items: center;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 72% 20%, rgba(255,255,255,.86), transparent 36%),
+        linear-gradient(145deg, #ddd7cc, #f3efe7 58%, #d8d1c5);
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(23,22,20,.07), 0 28px 65px rgba(44,39,31,.12);
+    }
+    .device-stage::before {
+      content: "";
+      position: absolute;
+      width: 420px;
+      height: 420px;
+      border: 1px dashed rgba(23,22,20,.12);
+      border-radius: 50%;
+    }
+    .device {
+      position: relative;
+      width: min(84%, 430px);
+      padding: 20px 20px 27px;
+      border-radius: 18px;
+      background: #efede7;
+      box-shadow:
+        0 30px 42px rgba(50,43,34,.24),
+        0 3px 0 #d2cdc4,
+        inset 0 0 0 1px #c9c4bb,
+        inset 0 1px 0 #fff;
+      transform: rotate(-2.2deg);
+    }
+    .device::before, .device::after {
+      content: "";
+      position: absolute;
+      top: 10px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #aaa69f;
+      box-shadow: inset 0 1px 1px rgba(0,0,0,.2);
+    }
+    .device::before { left: 11px; }
+    .device::after { right: 11px; }
+    .screen-bezel {
+      padding: 11px;
+      border-radius: 6px;
+      background: #242321;
+      box-shadow: inset 0 0 0 1px #090909;
+    }
+    .screen-bezel img { width: 100%; border-radius: 1px; image-rendering: auto; }
+    .device-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 4px 0;
+      color: #67635d;
+      font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+    }
+    .signal {
+      position: absolute;
+      right: 22px;
+      bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 11px;
+      border: 1px solid rgba(23,22,20,.12);
+      border-radius: 100px;
+      background: rgba(255,253,248,.76);
+      color: #4c4842;
+      font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      backdrop-filter: blur(8px);
+    }
+    .signal i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 4px rgba(189,46,46,.12); }
+
+    .section { padding: 112px 0; border-top: 1px solid var(--line); }
+    .section-head { max-width: 780px; margin-bottom: 58px; }
+    .eyebrow { margin: 0 0 14px; color: var(--red); font: 760 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .09em; }
+    .section h2 { margin: 0; font-size: clamp(36px, 5vw, 58px); line-height: 1.06; letter-spacing: -.05em; }
+    .section-lead { margin: 22px 0 0; color: var(--muted); font-size: 17px; line-height: 1.8; }
+
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .feature-card {
+      min-height: 330px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,253,248,.45);
+      transition: transform .2s ease, background .2s ease;
+    }
+    .feature-card:hover { transform: translateY(-5px); background: rgba(255,253,248,.78); }
+    .card-index { color: var(--red); font: 740 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .feature-visual { height: 105px; display: flex; align-items: center; }
+    .mini-meter { width: 100%; }
+    .mini-meter-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .mini-meter-row strong { font-size: 34px; letter-spacing: -.06em; }
+    .mini-meter-row span { color: var(--muted); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .mini-track { height: 9px; border: 1px solid var(--ink); }
+    .mini-track span { display: block; width: 76%; height: 100%; background: var(--ink); }
+    .plane-stack { position: relative; width: 130px; height: 86px; margin: 0 auto; }
+    .plane { position: absolute; width: 118px; height: 72px; border: 1px solid var(--ink); background: var(--white); }
+    .plane:nth-child(1) { left: 0; top: 0; background: repeating-linear-gradient(0deg, #fff 0 7px, #eeeae1 7px 8px); }
+    .plane:nth-child(2) { left: 12px; top: 12px; border-color: var(--red); background: repeating-linear-gradient(90deg, transparent 0 10px, rgba(189,46,46,.08) 10px 11px), var(--white); }
+    .clock-face { width: 104px; height: 104px; display: grid; place-items: center; margin: 0 auto; border: 1px solid var(--ink); border-radius: 50%; position: relative; font: 780 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .clock-face::before { content: ""; position: absolute; width: 1px; height: 30px; background: var(--red); transform: translateY(-14px) rotate(22deg); transform-origin: bottom; }
+    .clock-face::after { content: ""; position: absolute; width: 25px; height: 1px; background: var(--ink); transform: translateX(12px) rotate(-16deg); transform-origin: left; }
+    .feature-card h3 { margin: 0 0 12px; font-size: 24px; letter-spacing: -.03em; }
+    .feature-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+    .flow {
+      display: grid;
+      gap: 0;
+      padding: 34px;
+      border-radius: 20px;
+      background: var(--ink);
+      color: var(--white);
+    }
+    .flow-step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; align-items: start; }
+    .flow-step + .flow-step::before { content: ""; grid-column: 1; width: 1px; height: 28px; margin: 8px auto; background: #4d4943; }
+    .flow-number { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #68635b; border-radius: 50%; color: #f2c8c8; font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .flow-copy { padding-top: 2px; }
+    .flow-copy small { color: #b8b2a9; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+    .flow-copy h3 { margin: 7px 0 7px; font-size: 19px; }
+    .flow-copy p { margin: 0; color: #a9a39a; font-size: 13px; line-height: 1.65; }
+    .principles { display: grid; grid-template-rows: 1fr 1fr; gap: 22px; }
+    .principle { padding: 30px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,253,248,.42); }
+    .principle strong { display: block; margin-bottom: 12px; font-size: 22px; }
+    .principle p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+    .principle .stamp { display: inline-flex; margin-bottom: 28px; padding: 7px 9px; border: 1px solid var(--red); color: var(--red); font: 750 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; transform: rotate(-2deg); }
+
+    .setup-wrap {
+      display: grid;
+      grid-template-columns: .82fr 1.18fr;
+      gap: 58px;
+      align-items: center;
+    }
+    .setup-list { display: grid; gap: 24px; margin-top: 34px; }
+    .setup-item { display: grid; grid-template-columns: 34px 1fr; gap: 15px; }
+    .setup-item span { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--red); font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .setup-item h3 { margin: 1px 0 7px; font-size: 17px; }
+    .setup-item p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .terminal {
+      overflow: hidden;
+      border-radius: 17px;
+      background: #1d1c1a;
+      color: #e8e3db;
+      box-shadow: 0 34px 70px rgba(38,33,27,.18);
+    }
+    .terminal-head { height: 46px; display: flex; align-items: center; gap: 7px; padding: 0 18px; border-bottom: 1px solid #383531; }
+    .terminal-head i { width: 9px; height: 9px; border-radius: 50%; background: #5d5851; }
+    .terminal-head i:first-child { background: var(--red); }
+    .terminal-head span { margin-left: auto; color: #817b72; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    pre { margin: 0; padding: 27px 28px 31px; overflow-x: auto; font: 12px/1.85 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .prompt { color: #e87b7b; }
+    .comment { color: #777169; }
+    .success { color: #eee8de; }
+
+    .opensource {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 40px;
+      padding: 66px;
+      border-radius: 24px;
+      background: var(--red);
+      color: white;
+      overflow: hidden;
+      position: relative;
+    }
+    .opensource::after { content: "400×300"; position: absolute; right: 36px; top: 15px; color: rgba(255,255,255,.09); font-size: 92px; font-weight: 850; letter-spacing: -.08em; }
+    .opensource h2 { max-width: 720px; margin: 0; font-size: clamp(38px, 5vw, 62px); line-height: 1.02; letter-spacing: -.055em; }
+    .opensource p { max-width: 650px; margin: 20px 0 0; color: #f3dede; line-height: 1.75; }
+    .opensource .button { position: relative; z-index: 2; background: white; border-color: white; color: var(--ink); white-space: nowrap; }
+
+    footer { padding: 34px 0 48px; color: #7a756c; font-size: 12px; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 24px; padding-top: 28px; border-top: 1px solid var(--line); }
+    .footer-links { display: flex; gap: 18px; }
+
+    [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+    [data-reveal].is-visible { opacity: 1; transform: none; }
+
+    @media (max-width: 900px) {
+      .nav-links a:not(.nav-github) { display: none; }
+      .hero { grid-template-columns: 1fr; gap: 56px; padding-top: 70px; }
+      .hero-copy { max-width: 720px; }
+      .device-stage { min-height: 480px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .feature-card { min-height: 280px; }
+      .architecture, .setup-wrap { grid-template-columns: 1fr; }
+      .setup-wrap { gap: 46px; }
+      .opensource { grid-template-columns: 1fr; align-items: start; padding: 46px; }
+    }
+
+    @media (max-width: 560px) {
+      .shell { width: min(calc(100% - 28px), var(--content)); }
+      .site-header .shell { width: min(calc(100% - 22px), var(--content)); }
+      .nav { min-height: 60px; }
+      .brand span { font-size: 14px; }
+      .nav-github { padding: 9px 11px; font-size: 12px; }
+      .hero { min-height: 0; padding: 58px 0 72px; }
+      .hero h1 { font-size: 49px; }
+      .hero-copy { font-size: 16px; line-height: 1.75; }
+      .button { width: 100%; }
+      .fact-row { display: grid; grid-template-columns: 1fr 1fr; }
+      .device-stage { min-height: 355px; border-radius: 18px; }
+      .device { width: 90%; padding: 14px 14px 20px; border-radius: 13px; }
+      .screen-bezel { padding: 7px; }
+      .signal { right: 12px; bottom: 12px; }
+      .section { padding: 82px 0; }
+      .section-head { margin-bottom: 38px; }
+      .feature-card, .flow, .principle { padding: 24px; }
+      .opensource { padding: 38px 26px; border-radius: 18px; }
+      .opensource::after { font-size: 62px; }
+      .footer-inner { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+      [data-reveal] { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav">
+      <a class="brand" href="#top" aria-label="返回顶部">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>EPD AI 配额屏</span>
+      </a>
+      <nav class="nav-links" aria-label="主导航">
+        <a href="#features">功能</a>
+        <a href="#how">原理</a>
+        <a href="#setup">安装</a>
+        <a class="nav-github" href="https://github.com/askfanxiaojun/epd-ai-quota-display">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="shell hero" data-screen-label="项目首屏">
+      <div data-reveal>
+        <p class="kicker">nRF52811 · BLE · E-INK</p>
+        <h1>把 AI 配额，<br><em>留在桌面上。</em></h1>
+        <p class="hero-copy">一块闲置的三色电子价签，实时显示 Codex 的 5 小时与 7 天剩余配额。Mac 自动读取本地登录状态、生成画面，再通过蓝牙写入墨水屏。</p>
+        <div class="actions">
+          <a class="button button-primary" href="#setup"><span>开始搭建</span><span class="arrow">↓</span></a>
+          <a class="button button-secondary" href="https://github.com/askfanxiaojun/epd-ai-quota-display"><span>查看源代码</span><span class="arrow">↗</span></a>
+        </div>
+        <div class="fact-row" aria-label="项目特点">
+          <span>真实配额</span>
+          <span>无需额外 API Key</span>
+          <span>每 30 分钟更新</span>
+          <span>完全开源</span>
+        </div>
+      </div>
+
+      <div class="device-stage" data-reveal>
+        <div class="device" aria-label="400×300 三色墨水屏效果图">
+          <div class="screen-bezel"><img src="assets/quota-display-preview.png" alt="墨水屏显示 Codex 与 Claude Code 配额面板"></div>
+          <div class="device-label"><span>NRF_EPD_0819</span><span>4.7 INCH</span></div>
+        </div>
+        <div class="signal"><i aria-hidden="true"></i><span>BLE CONNECTED</span></div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="shell">
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">它解决什么</p>
+          <h2>不用打开网页，抬眼就知道还剩多少。</h2>
+          <p class="section-lead">配额本来藏在命令行和账号接口里。这个项目把它变成桌面上的常驻信息：安静、低功耗，也不需要另一块持续发光的屏幕。</p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card" data-reveal>
+            <span class="card-index">01 / QUOTA</span>
+            <div class="feature-visual">
+              <div class="mini-meter">
+                <div class="mini-meter-row"><span>7 DAYS LEFT</span><strong>76%</strong></div>
+                <div class="mini-track"><span></span></div>
+              </div>
+            </div>
+            <div><h3>读取真实剩余量</h3><p>复用 Codex CLI 已有的 ChatGPT OAuth 会话，读取 5 小时和 7 天窗口，并显示重置时间，不做本地估算。</p></div>
+          </article>
+
+          <article class="feature-card" data-reveal>
+            <span class="card-index">02 / RENDER</span>
+            <div class="feature-visual">
+              <div class="plane-stack" aria-hidden="true"><span class="plane"></span><span class="plane"></span></div>
+            </div>
+            <div><h3>黑、红双图层</h3><p>Mac 使用 Pillow 把页面渲染为两个 15,000 字节的 1-bit 图层，再按固件协议传给 SSD1619 三色屏。</p></div>
+          </article>
+
+          <article class="feature-card" data-reveal>
+            <span class="card-index">03 / AUTOMATION</span>
+            <div class="feature-visual"><div class="clock-face">30m</div></div>
+            <div><h3>后台自动更新</h3><p>使用 macOS 原生 launchd，每 30 分钟刷新一次。无需常驻 Terminal，也不需要额外安装桌面 App。</p></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how">
+      <div class="shell">
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">工作原理</p>
+          <h2>Mac 负责思考，电子价签只负责显示。</h2>
+          <p class="section-lead">现有 nRF52811 设备没有 Wi-Fi。把网络请求和图像渲染留在 Mac 上，反而让整个方案更简单，也不需要修改已经稳定工作的 BLE 固件。</p>
+        </div>
+
+        <div class="architecture">
+          <div class="flow" data-reveal>
+            <div class="flow-step"><span class="flow-number">01</span><div class="flow-copy"><small>LOCAL AUTH</small><h3>读取本机 Codex 登录</h3><p>只读取已有 OAuth 会话，不把 token 写入仓库或日志。</p></div></div>
+            <div class="flow-step"><span class="flow-number">02</span><div class="flow-copy"><small>PYTHON + PILLOW</small><h3>生成 400×300 画面</h3><p>计算剩余比例，排版数字、进度条和重置时间。</p></div></div>
+            <div class="flow-step"><span class="flow-number">03</span><div class="flow-copy"><small>CORE BLUETOOTH</small><h3>发送黑色与红色图层</h3><p>使用协商后的 244 字节 MTU，分块写入 nRF52811。</p></div></div>
+            <div class="flow-step"><span class="flow-number">04</span><div class="flow-copy"><small>SSD1619</small><h3>刷新并保持画面</h3><p>断开蓝牙后无需持续供电刷新，信息仍留在屏幕上。</p></div></div>
+          </div>
+
+          <div class="principles">
+            <article class="principle" data-reveal><span class="stamp">NO EXTRA KEY</span><strong>不新增账号负担</strong><p>数据请求直接使用 Codex 已有登录状态。项目不会保存新的密钥，也不会上传对话内容。</p></article>
+            <article class="principle" data-reveal><span class="stamp">FAIL SAFE</span><strong>失败时保留上一帧</strong><p>只有数据获取和蓝牙连接成功后才会清屏。网络或扫描失败，不会把墨水屏留成空白。</p></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="setup">
+      <div class="shell setup-wrap">
+        <div data-reveal>
+          <p class="eyebrow">安装与运行</p>
+          <h2>三步，让它自己更新。</h2>
+          <div class="setup-list">
+            <div class="setup-item"><span>01</span><div><h3>准备硬件</h3><p>给 nRF52811 电子价签刷入 EPD-nRF5_DYC 固件，并确认广播名以 NRF_EPD 开头。</p></div></div>
+            <div class="setup-item"><span>02</span><div><h3>安装 Python 环境</h3><p>创建虚拟环境并安装 Bleak 与 Pillow。先用 dry-run 生成本地预览。</p></div></div>
+            <div class="setup-item"><span>03</span><div><h3>注册定时任务</h3><p>运行项目提供的安装脚本，launchd 会立即更新一次，此后每 30 分钟执行。</p></div></div>
+          </div>
+        </div>
+
+        <div class="terminal" data-reveal aria-label="安装命令示例">
+          <div class="terminal-head"><i></i><i></i><i></i><span>zsh — epd-ai-quota-display</span></div>
+          <pre><span class="comment"># 下载项目</span>
+<span class="prompt">$</span> git clone https://github.com/askfanxiaojun/epd-ai-quota-display
+<span class="prompt">$</span> cd epd-ai-quota-display
+
+<span class="comment"># 创建环境并生成预览</span>
+<span class="prompt">$</span> python3 -m venv .venv
+<span class="prompt">$</span> .venv/bin/pip install -r requirements.txt
+<span class="prompt">$</span> .venv/bin/python epd_status.py --dry-run
+
+<span class="comment"># 安装每 30 分钟自动更新</span>
+<span class="prompt">$</span> chmod +x scripts/*.sh
+<span class="prompt">$</span> ./scripts/install-launchagent.sh
+
+<span class="success">Installed com.local.epd-ai-quota-display</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="shell">
+        <div class="opensource" data-reveal>
+          <div><p class="eyebrow" style="color:#f6caca">完全开源</p><h2>从空白屏排错到定时更新，过程全部公开。</h2><p>仓库包含可运行脚本、中文教程、BLE 协议说明、设计稿、故障排查和真实硬件验证记录。</p></div>
+          <a class="button" href="https://github.com/askfanxiaojun/epd-ai-quota-display">在 GitHub 查看 <span>↗</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <span>EPD AI 配额屏 · nRF52811 · 400×300 三色墨水屏</span>
+      <div class="footer-links"><a href="BLE_PROTOCOL.md">BLE 协议</a><a href="TROUBLESHOOTING.md">排错指南</a><a href="https://github.com/askfanxiaojun/epd-ai-quota-display">GitHub</a></div>
+    </div>
+  </footer>
+
+  <script>
+    const revealItems = document.querySelectorAll("[data-reveal]");
+    if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12 });
+      revealItems.forEach((item) => observer.observe(item));
+    } else {
+      revealItems.forEach((item) => item.classList.add("is-visible"));
+    }
+  </script>
+</body>
+</html>
