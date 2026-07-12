@@ -1,27 +1,45 @@
-# EPD AI Quota Display
+<h1 align="center">EPD AI 配额屏</h1>
 
-项目主页：[https://askfanxiaojun.github.io/epd-ai-quota-display/](https://askfanxiaojun.github.io/epd-ai-quota-display/)
+<p align="center">把 Codex 真实配额留在桌面上 —— nRF52811 · BLE · 400×300 三色墨水屏</p>
 
-源代码：[https://github.com/askfanxiaojun/epd-ai-quota-display](https://github.com/askfanxiaojun/epd-ai-quota-display)
+<p align="center">
+  <a href="https://askfanxiaojun.github.io/epd-ai-quota-display/">官网</a> ·
+  <a href="https://github.com/askfanxiaojun/epd-ai-quota-display">GitHub</a> ·
+  <a href="#快速上手">快速上手</a> ·
+  <a href="docs/TROUBLESHOOTING.md">故障排查</a>
+</p>
 
-把 Codex 的真实剩余配额显示在 400×300 黑白红三色墨水屏上，并通过 macOS
-每 30 分钟自动刷新。
+<p align="center">
+  <a href="https://askfanxiaojun.github.io/epd-ai-quota-display/">
+    <img src="docs/assets/quota-display-preview.png" width="720" alt="EPD AI 配额屏效果预览">
+  </a>
+</p>
 
-![配额面板预览](docs/assets/quota-display-preview.png)
-
-高剩余量边界测试：
-
-![99% 剩余量压力测试](docs/assets/quota-display-99-percent-test.png)
+一块闲置的 400×300 三色电子价签，放在桌上实时显示 **Codex 5 小时和 7 天
+窗口的真实剩余配额**。Mac 自动读取已有的 Codex 登录状态、生成黑色与红色
+图层，再通过 BLE 写入 nRF52811；配合 macOS `launchd`，每 30 分钟自动更新，
+不需要保持 Terminal 窗口打开。
 
 本项目面向使用
 [`YCD12/EPD-nRF5_DYC`](https://github.com/YCD12/EPD-nRF5_DYC) 固件的
-nRF52811 电子价签。Mac 负责读取配额、渲染页面和通过 BLE 传图；墨水屏本身
-不需要 Wi-Fi。
+nRF52811 电子价签。墨水屏本身不需要 Wi-Fi，也不需要修改已经稳定工作的
+BLE 固件。
 
 > 当前版本已经接入 Codex。Claude Code 暂时保留相同层级的 5 小时和 7 天
-> 占位，后续可以补充数据源。
+> 占位，后续可以继续补充数据源。
 
-## 最终效果
+## 功能
+
+| 功能 | 说明 |
+| --- | --- |
+| **真实 Codex 配额** | 读取 5 小时与 7 天窗口的剩余百分比、进度条和重置时间，不做本地估算。 |
+| **黑白红三色渲染** | 使用 Pillow 生成黑色与红色两个 1-bit 图层，每个图层 15,000 字节。 |
+| **BLE 写入电子价签** | 扫描 `NRF_EPD_*`，按协商后的 MTU 分块发送到 nRF52811，再触发 SSD1619 刷新。 |
+| **每 30 分钟自动更新** | 使用 macOS 原生 `launchd` 后台运行，不需要开发或常驻额外桌面 App。 |
+| **失败时保留上一帧** | 数据请求或蓝牙扫描失败时在清屏前退出，避免把墨水屏留成空白。 |
+| **完整中文教程** | 包含安装、BLE 协议、空白屏排查、实际验证记录和最终 HTML 设计稿。 |
+
+## 显示内容
 
 面板包含：
 
@@ -39,6 +57,15 @@ Pillow 渲染实现。
 屏幕的内容虽然看起来是文字和进度条，但对设备而言仍然是两个 1-bit 位图
 图层。Mac 使用 Pillow 先把数据排版成 400×300 像素，再分别发送黑色层和
 红色层。
+
+### 高剩余量边界测试
+
+实体屏测试中曾发现 `99%` 与进度条距离过近。当前版本已经调整大数字和进度条
+的垂直间距，并使用两个 `99%` 窗口进行压力测试。
+
+<p align="center">
+  <img src="docs/assets/quota-display-99-percent-test.png" width="640" alt="99% 剩余量边界测试">
+</p>
 
 ## 工作原理
 
@@ -94,7 +121,12 @@ BS=02 model=02 LED=12 EN=07
 - 已登录的 Codex ChatGPT 账号；
 - Python 包：`bleak`、`Pillow`。
 
-## 一、安装
+## 快速上手
+
+开始之前需要：一台支持蓝牙的 Mac、一块已经刷入 EPD-nRF5_DYC 固件的
+nRF52811 电子价签，以及本机已经登录的 Codex ChatGPT 账号。
+
+### 第 1 步 · 安装环境
 
 将仓库放到任意固定目录，然后进入项目：
 
@@ -113,7 +145,7 @@ test -f ~/.codex/auth.json && echo "Codex login found"
 程序不会打印其中的 token。如果 Codex 使用 API key 模式而不是 ChatGPT
 登录模式，则无法通过这里的 endpoint 获取订阅配额。
 
-## 二、先只生成预览
+### 第 2 步 · 先生成预览
 
 ```zsh
 .venv/bin/python epd_status.py --dry-run
@@ -129,7 +161,7 @@ Rendered /path/to/test-card.png (15000 bytes x 2 layers)
 预览文件保存在项目根目录的 `test-card.png`。这一步会访问网络，但不会连接
 蓝牙，也不会改变屏幕内容。
 
-## 三、验证屏幕和固件
+### 第 3 步 · 验证屏幕和固件
 
 如果还没有验证硬件，先调用固件内置日历：
 
@@ -146,7 +178,7 @@ Rendered /path/to/test-card.png (15000 bytes x 2 layers)
 如果日历可以显示而自定义图片空白，重点查看
 [排错指南](docs/TROUBLESHOOTING.md) 中的清屏后重新初始化问题。
 
-## 四、写入真实 Codex 数据
+### 第 4 步 · 写入真实 Codex 数据
 
 确保设备正在广播，且没有被网页或其他 BLE 客户端占用：
 
@@ -176,7 +208,7 @@ Refresh command sent. The panel may take several seconds to settle.
 | `--no-clear` | 不先清除已有色彩层，主要用于实验 |
 | `--name-prefix PREFIX` | 修改要扫描的 BLE 名称前缀 |
 
-## 五、设置每 30 分钟自动更新
+### 第 5 步 · 设置每 30 分钟自动更新
 
 macOS 使用 `launchd` 管理后台任务。项目提供了安装脚本，会：
 
