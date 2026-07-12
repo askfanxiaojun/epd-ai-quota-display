@@ -1,60 +1,67 @@
-# BLE protocol notes
+# BLE 协议与图像传输说明
 
-This project talks to the firmware from
-[`YCD12/EPD-nRF5_DYC`](https://github.com/YCD12/EPD-nRF5_DYC). The notes below
-describe the behavior verified with an nRF52811 price tag and a 400×300
-SSD1619 black/white/red panel.
+本项目通过 BLE 与
+[`YCD12/EPD-nRF5_DYC`](https://github.com/YCD12/EPD-nRF5_DYC) 固件通信。
+以下内容来自 nRF52811 电子价签与 400×300、SSD1619 黑白红三色屏的实际验证。
 
-## GATT service
+## GATT 服务
 
-| Purpose | UUID |
+| 用途 | UUID |
 | --- | --- |
-| Service | `62750001-d828-918d-fb46-b6c11c675aec` |
-| Command/data characteristic | `62750002-d828-918d-fb46-b6c11c675aec` |
+| BLE 服务 | `62750001-d828-918d-fb46-b6c11c675aec` |
+| 命令与数据特征值 | `62750002-d828-918d-fb46-b6c11c675aec` |
 
-The device advertises with a name beginning with `NRF_EPD`.
+设备广播名称以 `NRF_EPD` 开头。程序会扫描所有匹配设备，并根据广播数据中的
+RSSI 选择信号最强的一台。
 
-## Commands used
+## 使用到的命令
 
-| Byte | Command |
+| 命令字节 | 含义 |
 | --- | --- |
-| `0x01` | Initialize EPD driver |
-| `0x02` | Clear and refresh panel |
-| `0x30` | Write image data |
-| `0x05` | Refresh panel |
-| `0x20` | Set time / select built-in display mode |
+| `0x01` | 初始化 EPD 驱动 |
+| `0x02` | 清屏并刷新 |
+| `0x30` | 写入图像数据 |
+| `0x05` | 刷新屏幕 |
+| `0x20` | 设置时间或选择固件内置显示模式 |
 
-## Image format
+## 图像格式
 
-- Resolution: 400×300 pixels.
-- One bit per pixel, MSB first.
-- White is `1`; colored pixel is `0` in its color plane.
-- One plane is 15,000 bytes (`400 × 300 ÷ 8`).
-- Layer code `0x0F` selects black; `0x00` selects red.
+- 分辨率：400×300 像素；
+- 每个像素使用 1 bit，按 MSB 优先排列；
+- 白色像素为 `1`，对应颜色图层上的有效像素为 `0`；
+- 每个图层大小为 15,000 字节，即 `400 × 300 ÷ 8`；
+- 图层代码 `0x0F` 表示黑色，`0x00` 表示红色。
 
-The first packet for a plane uses its layer code directly. Continuation packets
-OR the code with `0xF0`. Each packet begins with command byte `0x30`, followed
-by the layer/start byte and image data.
+每个图层的第一个数据包直接使用图层代码，后续数据包将图层代码与 `0xF0`
+进行按位或运算。每个数据包都以命令字节 `0x30` 开头，随后是图层/起始标记，
+最后才是图像数据。
 
-The firmware reports the negotiated characteristic length, commonly `244`.
-The sender therefore uses `244 - 2 = 242` image bytes per packet. To match the
-original web client, it sends 50 packets without response and then a confirmed
-write for flow control.
+固件会通过通知返回协商后的特征值长度，实测通常为 `244`。因此每个数据包
+可以携带 `244 - 2 = 242` 字节图像数据。为了与原项目中已经验证可用的网页
+客户端保持一致，发送端连续执行 50 次 `write without response`，再执行一次
+需要确认的写入，以此控制传输节奏。
 
-## Important clear behavior
+## 正确的完整写入顺序
 
-On the tested SSD1619 configuration, `CLEAR` refreshes and then powers the EPD
-driver off. Sending image data immediately afterwards succeeds at the BLE layer
-but leaves the screen blank. The working sequence is:
+实测 SSD1619 配置中，`CLEAR` 不只是擦除显存，它还会自行刷新并关闭 EPD
+驱动。如果清屏后立刻发送图像，BLE 层可能显示全部发送成功，但屏幕仍然是
+空白的。
 
-1. `INIT`
-2. `CLEAR`
-3. wait for the clear operation
-4. `INIT` again
-5. send the complete black plane
-6. send the complete red plane
-7. `REFRESH`
+正确顺序如下：
 
-The reinitialization after clear was the key fix for the original blank-screen
-problem.
+1. 发送 `INIT` 初始化驱动；
+2. 发送 `CLEAR` 清除上一帧；
+3. 等待清屏操作完成；
+4. 再次发送 `INIT`；
+5. 完整发送黑色图层；
+6. 完整发送红色图层；
+7. 发送 `REFRESH` 刷新屏幕。
+
+清屏后的第二次初始化，是解决最初“传输成功但屏幕空白”问题的关键。
+
+## 为什么分成两个颜色图层
+
+三色墨水屏并不是接收一张普通 RGB 图片。程序先用 Pillow 分别创建黑色和
+红色的 1-bit 画布，再把文字、线条和进度条绘制到对应画布上。固件依次接收
+两个图层，屏幕驱动在最终刷新时把它们组合成黑、红、白三色画面。
 

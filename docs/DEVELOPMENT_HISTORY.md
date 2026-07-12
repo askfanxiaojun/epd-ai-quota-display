@@ -1,77 +1,129 @@
-# Development history
+# 完整开发记录
 
-This document condenses the full implementation conversation into the decisions
-and evidence that matter for reproducing the project.
+本文将整个实现过程整理为可复现的技术决策和排错证据，方便后来者理解项目
+为什么采用当前架构，以及几个关键问题是如何解决的。
 
-## 1. Feasibility
+## 1. 判断需求是否可行
 
-The original firmware presents a BLE command channel capable of initializing
-the EPD, receiving raw image bytes and asking the panel to refresh. It is not
-limited to its built-in calendar: text, progress bars and arbitrary UI can be
-rendered on the Mac as pixels and transferred as image planes.
+最初的问题是：原固件除了日历和时钟，能否显示其他非图片类的信息，例如
+Codex 或 Claude Code 的剩余配额？
 
-The first architecture was deliberately simple:
+答案是可以。文字、数字、进度条在传给墨水屏之前，都会先由 Mac 渲染成
+像素。固件提供了 BLE 命令通道，可以初始化 EPD、接收原始图像字节并触发
+刷新，所以它并不局限于内置日历。
+
+第一版架构刻意保持简单：
 
 ```text
-Codex local OAuth → macOS Python → Pillow renderer → Bleak → nRF52811 → EPD
+Codex 本地 OAuth → macOS Python → Pillow 渲染 → Bleak → nRF52811 → EPD
 ```
 
-The Mac performs the network request and rendering. The price tag remains a
-low-power BLE display and does not need Wi-Fi.
+Mac 负责联网获取状态、计算数据和生成画面。电子价签只承担低功耗 BLE 显示，
+不需要为现有硬件增加 Wi-Fi。
 
-## 2. First BLE sender
+## 2. 建立第一版 BLE 发送脚本
 
-A Python proof of concept generated a 400×300 test card, packed it as one-bit
-pixels and sent it through the firmware's custom GATT characteristic. A Bleak
-API change caused the first error: `BLEDevice.rssi` no longer exists. Reading
-RSSI from advertisement data fixed device selection.
+Python 脚本先生成一张 400×300 测试卡，将其转换成每像素 1 bit 的数据，再
+通过固件自定义的 GATT 特征值发送。
 
-## 3. Blank-screen investigation
+第一次运行遇到：
 
-The sender appeared successful: every chunk was acknowledged and the refresh
-command was sent, yet the panel remained blank. The firmware's built-in
-calendar test rendered correctly, proving the hardware configuration worked.
+```text
+AttributeError: 'BLEDevice' object has no attribute 'rssi'
+```
 
-The remaining differences from the working web client were then mirrored:
+原因是新版 Bleak 已经把 RSSI 从 `BLEDevice` 移到广播数据
+`AdvertisementData`。改为使用 `return_adv=True` 扫描，并从
+`advertisement.rssi` 选择信号最强的设备后，扫描恢复正常。
 
-- use the negotiated `mtu=244` notification;
-- send 242 image bytes per packet;
-- use write-without-response in batches with periodic confirmed writes;
-- reinitialize the SSD1619 after clear because clear powers it off.
+## 3. 排查“传输成功但屏幕空白”
 
-After the second initialization was added, transferred images appeared.
+随后出现了更隐蔽的问题：日志显示所有数据块已经发送，刷新命令也成功，但
+墨水屏依然空白。
 
-## 4. Real Codex quota
+为了缩小范围，先发送固件内置的日历命令。日历可以正常显示，证明：
 
-Quota retrieval follows the approach used by
-[`farion1231/cc-switch`](https://github.com/farion1231/cc-switch): read the local
-ChatGPT OAuth session from `~/.codex/auth.json`, call the Codex usage endpoint,
-and parse its primary and secondary rate-limit windows. Tokens are used only in
-the HTTPS authorization header and are never logged or copied into the image.
+- BLE 连接正常；
+- 固件中的屏幕型号和引脚配置基本正确；
+- 屏幕本身能够初始化和刷新。
 
-Claude Code is intentionally shown as an unconfigured placeholder until an
-account and data source are available.
+因此问题集中在自定义图像传输路径。对照原项目网页客户端后，依次同步了这些
+行为：
 
-## 5. Display design
+- 读取设备通知中的 `mtu=244`；
+- 每个包发送 242 字节图像数据；
+- 连续执行多次 `write without response`；
+- 周期性插入需要确认的写入作为流控；
+- 清屏后再次初始化 SSD1619。
 
-Several layouts were considered before choosing a single-column ledger. The
-final hierarchy is:
+最后一项是关键。该配置下的 `CLEAR` 会刷新并关闭 EPD 驱动。如果清屏之后
+不重新初始化，BLE 数据虽然能全部发送成功，但屏幕不会显示新画面。加入第二次
+`INIT` 后，自定义图片成功出现。
 
-1. AI quota panel status.
-2. Codex provider title.
-3. Equal 5-hour and 7-day windows, each with remaining percentage, progress bar
-   and reset time.
-4. An equal Claude Code section with empty placeholders.
-5. Full update date and time.
+## 4. 获取真实 Codex 配额
 
-The physical test showed that small metadata was hard to read, so provider
-names, window labels, percent signs, reset times and the footer timestamp were
-enlarged. The panel uses only black, red and white.
+配额获取参考
+[`farion1231/cc-switch`](https://github.com/farion1231/cc-switch) 的实现方式：
 
-## 6. Scheduled operation
+1. 读取本机 `~/.codex/auth.json`；
+2. 取得当前 ChatGPT OAuth 会话；
+3. 请求 Codex usage endpoint；
+4. 解析主窗口和次窗口的 `used_percent` 与 `reset_at`；
+5. 用 `100 - used_percent` 得到界面展示的剩余比例。
 
-The proven script was registered as a user LaunchAgent. It runs every 30
-minutes, logs output, and works without an open Terminal window. A live
-LaunchAgent test successfully fetched quota, discovered the tag, transferred
-both 15,000-byte planes, refreshed the display and exited with code 0.
+OAuth token 只用于 HTTPS Authorization 请求头，不会被写入图片、日志或项目
+文件。Claude Code 因暂时没有账号和数据源，先保留为未连接占位。
+
+## 5. 设计配额页面
+
+设计阶段先尝试了双栏和其他布局，最终确定为单栏 Ledger 风格。原因是 4.7 寸
+左右的 400×300 屏幕横向空间有限，但纵向空间足够，单栏更容易建立清晰层级。
+
+最终信息结构为：
+
+1. 顶部显示 AI 配额面板状态；
+2. `CODEX` 作为第一组服务标题；
+3. 5 小时和 7 天窗口保持同一级别；
+4. 每个窗口都有剩余百分比、进度条和重置时间；
+5. `CLAUDE CODE` 与 Codex 保持同级，并预留相同的两个窗口；
+6. 底部显示完整的更新日期和时间。
+
+第一次写入实体屏幕后发现，电脑预览中看似足够的小字，在墨水屏上并不清晰。
+因此进一步放大了服务名称、窗口标题、百分号、重置时间和底部时间戳。最终页面
+只使用黑、红、白三色，减少无意义装饰，把视觉权重留给剩余百分比和进度条。
+
+## 6. 从手动脚本变成自动更新
+
+在手动写入稳定后，下一步是定时运行。当前需求只有一个数据源和一块屏幕，
+因此没有立即开发 macOS App，而是选择系统原生的 `launchd`：
+
+- 用户登录后自动加载；
+- 每 30 分钟运行一次；
+- 不需要保持 Terminal 窗口打开；
+- 标准输出和错误分别写入日志；
+- 可以通过 `launchctl kickstart` 手动立即更新。
+
+实际后台测试中，LaunchAgent 成功读取配额、扫描到电子价签、连接 BLE、发送
+两个 15,000 字节图层、触发刷新，并以退出码 0 结束。这也证明后台进程在当前
+Mac 上拥有所需的网络与蓝牙权限。
+
+## 7. 当前状态和后续方向
+
+当前已经完成：
+
+- Codex 真实配额获取；
+- 400×300 黑白红三色渲染；
+- 黑色和红色双图层 BLE 发送；
+- 5 小时与 7 天独立进度条；
+- Claude Code 占位；
+- 每 30 分钟自动更新；
+- 日志、安装和卸载工具。
+
+后续可选方向：
+
+- 接入 Claude Code 配额数据；
+- 增加失败重试和 macOS 通知；
+- 支持多块电子价签；
+- 封装为菜单栏 App；
+- 更换带 Wi-Fi 的控制板，让系统脱离 Mac 独立运行。
 

@@ -189,18 +189,21 @@ def build_quota_card(width: int, height: int, windows: list[dict]) -> tuple[Imag
                 window = active_windows[index]
                 remaining = max(0.0, min(100.0, 100.0 - window["used"]))
                 value = f"{remaining:.0f}"
-                text_right(black_draw, x2 - 13, top + 34, value, number_font)
+                # PingFang's visible digits start well below Pillow's supplied
+                # Y coordinate. Keep the digit box above the progress bar even
+                # for a wide value such as 99%.
+                text_right(black_draw, x2 - 13, top + 25, value, number_font)
                 black_draw.text((x2 - 12, top + 47), "%", font=percent_font, fill=0)
 
-                bar_top = top + 63
+                bar_top = top + 65
                 black_draw.rectangle((x1, bar_top, x2, bar_top + 7), outline=0)
                 fill_width = round((x2 - x1 - 2) * remaining / 100)
                 if fill_width > 0:
                     black_draw.rectangle((x1 + 1, bar_top + 1, x1 + fill_width, bar_top + 6), fill=0)
                 black_draw.text((x1, top + 74), reset_label(window), font=meta_font, fill=0)
             else:
-                text_right(red_draw, x2, top + 36, "—", number_font)
-                draw_dashed_box(red_draw, (x1, top + 63, x2, top + 70), fill=0)
+                text_right(red_draw, x2, top + 25, "—", number_font)
+                draw_dashed_box(red_draw, (x1, top + 65, x2, top + 72), fill=0)
                 black_draw.text((x1, top + 74), "awaiting account", font=meta_font, fill=0)
 
     provider_section("CODEX", 51, codex_windows)
