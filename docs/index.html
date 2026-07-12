@@ -264,20 +264,38 @@
     .flow {
       display: grid;
       gap: 0;
+      align-content: start;
       padding: 34px;
       border-radius: 20px;
       background: var(--ink);
       color: var(--white);
     }
-    .flow-step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; align-items: start; }
-    .flow-step + .flow-step::before { content: ""; grid-column: 1; width: 1px; height: 28px; margin: 8px auto; background: #4d4943; }
+    .flow-step {
+      position: relative;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      padding-bottom: 34px;
+    }
+    .flow-step:last-child { padding-bottom: 0; }
+    .flow-step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 51px;
+      bottom: 7px;
+      left: 21px;
+      width: 1px;
+      background: #4d4943;
+    }
     .flow-number { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #68635b; border-radius: 50%; color: #f2c8c8; font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .flow-copy { padding-top: 2px; }
+    .flow-copy { min-width: 0; padding-top: 2px; }
     .flow-copy small { color: #b8b2a9; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
     .flow-copy h3 { margin: 7px 0 7px; font-size: 19px; }
     .flow-copy p { margin: 0; color: #a9a39a; font-size: 13px; line-height: 1.65; }
-    .principles { display: grid; grid-template-rows: 1fr 1fr; gap: 22px; }
-    .principle { padding: 30px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,253,248,.42); }
+    .principles { display: grid; grid-template-rows: repeat(2, minmax(190px, 1fr)); gap: 22px; }
+    .principle { min-width: 0; padding: 30px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,253,248,.42); }
     .principle strong { display: block; margin-bottom: 12px; font-size: 22px; }
     .principle p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
     .principle .stamp { display: inline-flex; margin-bottom: 28px; padding: 7px 9px; border: 1px solid var(--red); color: var(--red); font: 750 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; transform: rotate(-2deg); }
