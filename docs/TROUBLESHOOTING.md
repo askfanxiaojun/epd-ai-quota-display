@@ -17,6 +17,10 @@
 
 ## 屏幕被清空了，但新画面没有出现
 
+自动更新默认不会预先清屏。曾经的默认流程会在图层发送前执行 `CLEAR`，如果
+CoreBluetooth 随后在黑色或红色图层中途断开，屏幕就会停留在白色状态。
+当前版本已经改为直接覆盖完整图层，并在 BLE 失败时自动重试一次。
+
 检查日志中是否完整出现以下内容：
 
 ```text
@@ -32,6 +36,12 @@ Refresh command sent.
 - 确认浏览器或其他 BLE 客户端没有连接该设备；
 - 重新给电子价签上电后再试；
 - 查看 `logs/error.log` 中的具体异常。
+
+恢复白屏时使用安全写入，不要增加 `--clear-first`：
+
+```zsh
+.venv/bin/python epd_status.py --force
+```
 
 ## 找不到匹配的墨水屏设备
 
@@ -105,4 +115,3 @@ tail -n 100 logs/error.log
 参考预览：
 
 ![99% 压力测试](assets/quota-display-99-percent-test.png)
-

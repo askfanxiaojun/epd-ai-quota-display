@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>完整日历 × Codex 周配额 × 今日日程 — 墨水屏设计稿</title>
+  <style>
+    :root {
+      --ink: #171513;
+      --paper: #fbfaf6;
+      --red: #bc2e2e;
+      --muted: #6b6861;
+      --line: #d8d4ca;
+      --canvas: #e9e7e0;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+      letter-spacing: -0.015em;
+    }
+
+    .stage {
+      width: min(1120px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    .intro {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 32px;
+      margin-bottom: 24px;
+    }
+    .eyebrow {
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .15em;
+    }
+    h1 {
+      margin: 8px 0 0;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: -.045em;
+    }
+    .intro p {
+      max-width: 380px;
+      margin: 0;
+      color: #5e5a54;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 9px;
+      margin-bottom: 24px;
+      border: 1px solid #c8c4ba;
+      background: rgba(255,255,255,.42);
+    }
+    .toolbar-label {
+      padding: 0 7px 0 3px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    button, .old-link {
+      min-height: 36px;
+      padding: 8px 12px;
+      color: #5d5952;
+      background: transparent;
+      border: 1px solid transparent;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 780;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    button:hover, button[aria-pressed="true"], .old-link:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+      background: var(--paper);
+    }
+    button[aria-pressed="true"] { box-shadow: 3px 3px 0 var(--ink); }
+    .old-link { margin-left: 0; }
+    .toolbar .old-link:first-of-type { margin-left: auto; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(500px, 1fr) 260px;
+      align-items: center;
+      gap: 42px;
+    }
+    .preview-shell {
+      display: grid;
+      place-items: center;
+      min-height: 520px;
+      padding: 54px;
+      overflow: hidden;
+      background: #d7d4cc;
+      border: 1px solid #c5c1b7;
+    }
+    .device-caption {
+      margin-top: 14px;
+      color: #76716a;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .eink {
+      width: 400px;
+      height: 300px;
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: 12px 13px 0 rgba(23,21,19,.17), 0 0 0 1px var(--ink);
+      font-variant-numeric: tabular-nums;
+      user-select: none;
+    }
+
+    .screen {
+      display: grid;
+      grid-template-rows: 54px 218px 28px;
+      width: 100%;
+      height: 100%;
+      padding: 0 11px;
+    }
+    .screen-header {
+      display: grid;
+      grid-template-columns: 156px 1fr auto;
+      align-items: center;
+      column-gap: 9px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .date-lockup {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      white-space: nowrap;
+    }
+    .date-year, .date-month {
+      color: var(--red);
+      font-size: 23px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -.055em;
+    }
+    .date-unit {
+      margin: 0 2px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .traditional-date {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      padding-left: 9px;
+      border-left: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .traditional-date strong {
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 900;
+    }
+    .battery-lockup {
+      display: grid;
+      grid-template-columns: auto auto;
+      grid-template-rows: auto auto;
+      align-items: center;
+      column-gap: 5px;
+      row-gap: 3px;
+      justify-items: end;
+    }
+    .battery-value {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .03em;
+    }
+    .battery {
+      position: relative;
+      width: 31px;
+      height: 13px;
+      padding: 2px;
+      border: 1.5px solid var(--ink);
+    }
+    .battery::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      right: -4px;
+      width: 3px;
+      height: 5px;
+      background: var(--ink);
+    }
+    .battery-fill { display: block; width: 89%; height: 100%; background: var(--red); }
+    .battery-device {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 6px;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+
+    .screen-body {
+      display: grid;
+      grid-template-columns: 236px 1fr;
+      min-height: 0;
+    }
+    .calendar-panel {
+      min-width: 0;
+      padding: 7px 10px 4px 0;
+      border-right: 1px solid var(--ink);
+    }
+    .weekdays, .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+    }
+    .weekdays {
+      height: 22px;
+      margin-bottom: 3px;
+      color: var(--paper);
+      background: var(--ink);
+    }
+    .weekday {
+      display: grid;
+      place-items: center;
+      font-size: 8px;
+      font-weight: 850;
+      letter-spacing: .04em;
+    }
+    .weekday.weekend { background: var(--red); }
+    .calendar-grid { grid-template-rows: repeat(5, 37px); }
+    .day {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      min-width: 0;
+      border-bottom: 1px solid #e5e1d8;
+    }
+    .day-number {
+      display: grid;
+      place-items: center;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      font-size: 13px;
+      line-height: 1;
+      font-weight: 900;
+    }
+    .lunar {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 6.8px;
+      line-height: 1;
+      font-weight: 760;
+      white-space: nowrap;
+      text-overflow: clip;
+    }
+    .day.weekend .day-number, .day.weekend .lunar, .day.festival .lunar { color: var(--red); }
+    .day.today {
+      font-weight: 900;
+    }
+    .day.today .day-number { color: var(--paper); background: var(--red); }
+    .day.today .lunar { color: var(--red); font-weight: 900; }
+    .day.blank { border-bottom-color: transparent; }
+    .day-marker {
+      position: absolute;
+      top: 2px;
+      right: 1px;
+      color: var(--red);
+      font-size: 5px;
+      font-weight: 950;
+    }
+
+    .right-panel {
+      display: grid;
+      grid-template-rows: 91px 1fr;
+      min-width: 0;
+      padding: 7px 0 4px 10px;
+    }
+    .right-section {
+      min-width: 0;
+      overflow: hidden;
+    }
+    .right-section + .right-section {
+      padding-top: 7px;
+      border-top: 1px solid var(--ink);
+    }
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+      color: var(--red);
+    }
+    .section-title {
+      min-width: 0;
+      font-size: 13px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -.03em;
+      white-space: nowrap;
+    }
+    .section-status {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 6px;
+      line-height: 1;
+      font-weight: 850;
+      letter-spacing: .06em;
+    }
+    .quota-line {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 8px;
+      height: 39px;
+      padding: 4px 0 4px;
+    }
+    .quota-window {
+      padding-bottom: 3px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: .08em;
+    }
+    .quota-value {
+      font-size: 31px;
+      line-height: .84;
+      font-weight: 950;
+      letter-spacing: -.08em;
+    }
+    .quota-value span {
+      margin-left: 2px;
+      font-size: 11px;
+      letter-spacing: 0;
+    }
+    .quota-bar {
+      grid-column: 1 / -1;
+      height: 8px;
+      overflow: hidden;
+      border: 1px solid var(--ink);
+      background: var(--paper);
+    }
+    .quota-bar span { display: block; height: 100%; background: var(--red); }
+    .quota-meta {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 7px;
+      font-weight: 760;
+    }
+    .schedule-empty {
+      display: grid;
+      place-content: center;
+      height: 92px;
+      text-align: center;
+    }
+    .schedule-empty strong {
+      font-size: 12px;
+      line-height: 1.1;
+      font-weight: 900;
+    }
+    .schedule-empty span {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 7px;
+      font-weight: 760;
+    }
+    .schedule-list {
+      display: none;
+      padding-top: 6px;
+    }
+    .schedule-item {
+      display: grid;
+      grid-template-columns: 29px 1fr;
+      align-items: baseline;
+      gap: 5px;
+      min-height: 26px;
+      padding: 5px 0 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .schedule-time {
+      color: var(--red);
+      font-size: 8px;
+      font-weight: 900;
+    }
+    .schedule-title {
+      min-width: 0;
+      overflow: hidden;
+      font-size: 9px;
+      line-height: 1.15;
+      font-weight: 820;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .right-panel.has-schedule .schedule-empty { display: none; }
+    .right-panel.has-schedule .schedule-list { display: block; }
+
+    .screen-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid var(--ink);
+      color: var(--muted);
+      font-size: 8px;
+      font-weight: 780;
+      letter-spacing: .03em;
+    }
+    .screen-footer strong { color: var(--ink); }
+
+    .notes {
+      padding-top: 12px;
+      border-top: 2px solid var(--ink);
+    }
+    .notes-index {
+      color: var(--red);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      font-weight: 850;
+    }
+    .notes h2 {
+      margin: 8px 0 12px;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: -.035em;
+    }
+    .notes p {
+      margin: 0;
+      color: #5e5a54;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .rules {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+      padding: 0;
+      list-style: none;
+    }
+    .rules li {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 9px;
+      color: #5e5a54;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .rules b { color: var(--red); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    @media (max-width: 840px) {
+      .stage { width: min(100% - 24px, 560px); padding-top: 28px; }
+      .intro { display: block; }
+      .intro p { margin-top: 16px; }
+      .old-link { margin-left: 0; }
+      .workspace { grid-template-columns: 1fr; gap: 24px; }
+      .preview-shell { min-height: 390px; padding: 34px 8px; }
+      .eink { transform: scale(min(.9, calc((100vw - 58px) / 400))); }
+      .notes { max-width: 400px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <header class="intro">
+      <div>
+        <div class="eyebrow">DISPLAY MODE 03 · CALENDAR / QUOTA / AGENDA · 400 × 300</div>
+        <h1>左边看日期，右边看今天。</h1>
+      </div>
+      <p>Codex 只保留仍然有效的 7 天配额。右侧重新分成两个同级区块：上方判断本周容量，下方读取 Mac 日历中的今日日程。</p>
+    </header>
+
+    <nav class="toolbar" aria-label="预览控制">
+      <span class="toolbar-label">日程状态</span>
+      <button type="button" data-state="empty" aria-pressed="true">真实数据 · 今日 0 项</button>
+      <button type="button" data-state="sample" aria-pressed="false">查看列表状态示例</button>
+      <a class="old-link" href="Codex Calendar Quota Display v2.html">返回上一版 →</a>
+    </nav>
+
+    <section class="workspace" data-screen-label="Calendar and Codex quota display">
+      <div>
+        <div class="preview-shell">
+          <div class="eink" id="eink-screen">
+            <section class="screen">
+              <header class="screen-header">
+                <div class="date-lockup">
+                  <span class="date-year">2026</span><span class="date-unit">年</span>
+                  <span class="date-month">7</span><span class="date-unit">月</span>
+                </div>
+                <div class="traditional-date">
+                  <strong>丙午年〔马〕</strong>
+                  <span>六月初二 · 第 29 周</span>
+                </div>
+                <div class="battery-lockup" aria-label="电池电压 3.2 伏">
+                  <span class="battery-value">3.2V</span>
+                  <span class="battery"><span class="battery-fill"></span></span>
+                  <span class="battery-device">NRF_EPD_0819</span>
+                </div>
+              </header>
+
+              <div class="screen-body">
+                <section class="calendar-panel" aria-label="2026 年 7 月日历">
+                  <div class="weekdays">
+                    <div class="weekday">一</div><div class="weekday">二</div><div class="weekday">三</div><div class="weekday">四</div><div class="weekday">五</div><div class="weekday weekend">六</div><div class="weekday weekend">日</div>
+                  </div>
+                  <div class="calendar-grid">
+                    <div class="day blank"></div><div class="day blank"></div>
+                    <div class="day festival"><span class="day-number">1</span><span class="lunar">建党节</span></div>
+                    <div class="day"><span class="day-number">2</span><span class="lunar">十八</span></div>
+                    <div class="day"><span class="day-number">3</span><span class="lunar">十九</span></div>
+                    <div class="day weekend"><span class="day-number">4</span><span class="lunar">二十</span></div>
+                    <div class="day weekend"><span class="day-number">5</span><span class="lunar">廿一</span></div>
+
+                    <div class="day"><span class="day-number">6</span><span class="lunar">廿二</span></div>
+                    <div class="day festival"><span class="day-number">7</span><span class="lunar">小暑</span></div>
+                    <div class="day"><span class="day-number">8</span><span class="lunar">廿四</span></div>
+                    <div class="day"><span class="day-number">9</span><span class="lunar">廿五</span></div>
+                    <div class="day"><span class="day-number">10</span><span class="lunar">廿六</span></div>
+                    <div class="day weekend"><span class="day-number">11</span><span class="lunar">廿七</span></div>
+                    <div class="day weekend"><span class="day-number">12</span><span class="lunar">廿八</span></div>
+
+                    <div class="day"><span class="day-number">13</span><span class="lunar">廿九</span></div>
+                    <div class="day"><span class="day-number">14</span><span class="lunar">六月</span></div>
+                    <div class="day today"><span class="day-number">15</span><span class="lunar">初二</span></div>
+                    <div class="day"><span class="day-number">16</span><span class="lunar">初三</span></div>
+                    <div class="day"><span class="day-number">17</span><span class="lunar">初四</span></div>
+                    <div class="day weekend"><span class="day-number">18</span><span class="lunar">初五</span></div>
+                    <div class="day weekend"><span class="day-number">19</span><span class="lunar">初六</span></div>
+
+                    <div class="day"><span class="day-number">20</span><span class="lunar">初七</span></div>
+                    <div class="day"><span class="day-number">21</span><span class="lunar">初八</span></div>
+                    <div class="day"><span class="day-number">22</span><span class="lunar">初九</span></div>
+                    <div class="day festival"><span class="day-number">23</span><span class="lunar">大暑</span></div>
+                    <div class="day"><span class="day-number">24</span><span class="lunar">十一</span></div>
+                    <div class="day weekend"><span class="day-number">25</span><span class="lunar">十二</span></div>
+                    <div class="day weekend"><span class="day-number">26</span><span class="lunar">十三</span></div>
+
+                    <div class="day"><span class="day-number">27</span><span class="lunar">十四</span></div>
+                    <div class="day"><span class="day-number">28</span><span class="lunar">十五</span></div>
+                    <div class="day"><span class="day-number">29</span><span class="lunar">十六</span></div>
+                    <div class="day"><span class="day-number">30</span><span class="lunar">十七</span></div>
+                    <div class="day"><span class="day-number">31</span><span class="lunar">十八</span></div>
+                    <div class="day blank"></div><div class="day blank"></div>
+                  </div>
+                </section>
+
+                <section class="right-panel" aria-label="Codex 配额与今日日程">
+                  <section class="right-section" aria-label="Codex 7 天配额">
+                    <div class="section-heading">
+                      <span class="section-title">Codex 配额</span>
+                      <span class="section-status">● LIVE</span>
+                    </div>
+                    <div class="quota-line">
+                      <span class="quota-window">7 DAYS</span>
+                      <span class="quota-value">94<span>%</span></span>
+                    </div>
+                    <div class="quota-bar"><span style="width:94%"></span></div>
+                    <div class="quota-meta">重置于 07-22 10:03</div>
+                  </section>
+
+                  <section class="right-section" aria-label="今日日程">
+                    <div class="section-heading">
+                      <span class="section-title">今日日程</span>
+                      <span class="section-status schedule-count">0 项</span>
+                    </div>
+                    <div class="schedule-empty">
+                      <strong>今天没有日程</strong>
+                      <span>来自 Mac 日历</span>
+                    </div>
+                    <div class="schedule-list" aria-label="日程列表状态示例">
+                      <div class="schedule-item"><span class="schedule-time">17:00</span><span class="schedule-title">交大技术合同审查</span></div>
+                      <div class="schedule-item"><span class="schedule-time">18:00</span><span class="schedule-title">晚饭</span></div>
+                      <div class="schedule-item"><span class="schedule-time">19:00</span><span class="schedule-title">健身</span></div>
+                      <div class="schedule-item"><span class="schedule-time">20:30</span><span class="schedule-title">核对徐汇项目材料</span></div>
+                    </div>
+                  </section>
+                </section>
+              </div>
+
+              <footer class="screen-footer">
+                <span><strong>UPDATED</strong> 2026-07-15 18:06</span>
+                <span>CALENDAR + TODAY</span>
+              </footer>
+            </section>
+          </div>
+        </div>
+        <div class="device-caption">actual canvas · 400 × 300 pixels · black / red / white</div>
+      </div>
+
+      <aside class="notes">
+        <div class="notes-index">03 / CALENDAR + TODAY</div>
+        <h2>配额看周期，日程看今天。</h2>
+        <p>右侧不再重复展示已经取消的 5 小时窗口。两个大标题直接回答“本周还能用多少”和“今天接下来做什么”。</p>
+        <ul class="rules">
+          <li><b>01</b><span>Codex 区块仅保留 7 DAYS，百分比和进度条获得更充足的辨识空间。</span></li>
+          <li><b>02</b><span>日程按开始时间排序，只显示今天；标题过长时截断，避免破坏 400×300 画布。</span></li>
+          <li><b>03</b><span>刚刚读取的 Mac 日历今天确实为 0 项，因此默认预览使用真实空状态。</span></li>
+          <li><b>04</b><span>工具栏可以切换到列表示例，用来检查未来有日程时的排版容量。</span></li>
+        </ul>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    function setPreviewState(state) {
+      const hasSchedule = state === 'sample';
+      document.querySelector('.right-panel').classList.toggle('has-schedule', hasSchedule);
+      document.querySelector('.schedule-count').textContent = hasSchedule ? '4 项 · 示例' : '0 项';
+      document.querySelectorAll('button[data-state]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.state === state));
+      });
+    }
+
+    document.querySelectorAll('button[data-state]').forEach((button) => {
+      button.addEventListener('click', () => setPreviewState(button.dataset.state));
+    });
+  </script>
+</body>
+</html>

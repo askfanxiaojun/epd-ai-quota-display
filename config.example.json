@@ -1,0 +1,15 @@
+{
+  "display_mode": "calendar-agenda",
+  "calendar": {
+    "names": [],
+    "max_events": 4
+  },
+  "sensor": {
+    "file": "sensor-reading.json",
+    "temperature_key": "temperature",
+    "humidity_key": "humidity",
+    "timestamp_key": "timestamp",
+    "location": "书房",
+    "max_age_minutes": 30
+  }
+}

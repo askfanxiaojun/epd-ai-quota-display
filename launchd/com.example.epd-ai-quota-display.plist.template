@@ -23,7 +23,7 @@
     </dict>
 
     <key>StartInterval</key>
-    <integer>1800</integer>
+    <integer>__UPDATE_INTERVAL__</integer>
 
     <key>RunAtLoad</key>
     <true/>
@@ -38,4 +38,3 @@
     <string>__PROJECT_DIR__/logs/error.log</string>
 </dict>
 </plist>
-
