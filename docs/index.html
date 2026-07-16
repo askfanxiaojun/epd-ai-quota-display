@@ -288,6 +288,20 @@
     .mode-screen { padding: 11px; border-radius: 7px; background: #242321; box-shadow: 0 18px 36px rgba(28,25,21,.18); }
     .mode-screen img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #f7f5ef; }
     .mode-card-primary .mode-screen { padding: 15px; box-shadow: 0 26px 52px rgba(0,0,0,.28); }
+    .mode-warning {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 18px;
+      padding: 18px 20px;
+      border: 1px solid var(--red);
+      background: rgba(189,46,46,.045);
+    }
+    .mode-warning span { padding-top: 3px; color: var(--red); font: 760 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+    .mode-warning p { margin: 0; color: #5e5952; font-size: 14px; line-height: 1.7; }
+    .mode-warning strong { color: var(--ink); }
+    .mode-warning code { color: var(--red-dark); font: 700 .92em/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
     .architecture {
       display: grid;
@@ -418,6 +432,7 @@
       .section-head { margin-bottom: 38px; }
       .feature-card, .flow, .principle { padding: 24px; }
       .mode-card, .mode-card-primary { padding: 24px; }
+      .mode-warning { grid-template-columns: 1fr; gap: 8px; }
       .opensource { padding: 38px 26px; border-radius: 18px; }
       .opensource::after { font-size: 62px; }
       .footer-inner { flex-direction: column; }
@@ -519,8 +534,10 @@
         <div class="section-head" data-reveal>
           <p class="eyebrow">三种显示模式</p>
           <h2>同一块屏幕，切换三种信息视图。</h2>
-          <p class="section-lead">推荐使用月历日程页；旧版纯配额页面完整保留，也可以接入本地实体传感器，切换为月历环境页。</p>
+          <p class="section-lead">推荐使用稳定的月历日程页；旧版纯配额页面完整保留。实时温湿度方案暂时只保留页面预览和实验代码。</p>
         </div>
+
+        <div class="mode-warning" data-reveal role="note"><span>EXPERIMENTAL / 暂缓</span><p><strong>实时温度与湿度功能目前存在问题。</strong> 暂时不要刷入相关固件，也不建议启用 <code>calendar-sensor</code> 自动更新；请先继续使用月历日程页。</p></div>
 
         <div class="mode-grid">
           <article class="mode-card mode-card-primary" data-reveal>
@@ -534,7 +551,7 @@
           </article>
 
           <article class="mode-card" data-reveal>
-            <div class="mode-card-head"><div><span class="card-index">03 / SENSOR</span><h3>月历环境页</h3><p>接入本地实体传感器后，在月历旁显示最近一次实测温湿度。</p></div><span class="mode-tag">可选</span></div>
+            <div class="mode-card-head"><div><span class="card-index">03 / SENSOR</span><h3>月历环境页</h3><p>实时温湿度链路仍在排查，当前只保留预览与实验代码，暂时不要刷入或用于自动写屏。</p></div><span class="mode-tag">暂缓</span></div>
             <div class="mode-screen"><img src="assets/calendar-sensor-preview.png" alt="月历与本地温湿度传感器显示模式"></div>
           </article>
         </div>
