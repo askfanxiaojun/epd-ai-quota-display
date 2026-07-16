@@ -3,14 +3,14 @@
 <p align="center">把完整月历、今日日程与 Codex 周配额留在桌面上 —— nRF52811 · BLE · 400×300 三色墨水屏</p>
 
 <p align="center">
-  <a href="https://askfanxiaojun.github.io/epd-ai-quota-display/">官网</a> ·
+  <a href="https://epd-ai-quota-display.xiaojunfan.top">官网</a> ·
   <a href="https://github.com/askfanxiaojun/epd-ai-quota-display">GitHub</a> ·
   <a href="#快速上手">快速上手</a> ·
   <a href="docs/TROUBLESHOOTING.md">故障排查</a>
 </p>
 
 <p align="center">
-  <a href="https://askfanxiaojun.github.io/epd-ai-quota-display/">
+  <a href="https://epd-ai-quota-display.xiaojunfan.top">
     <img src="docs/assets/quota-display-preview.png" width="720" alt="EPD AI 配额屏效果预览">
   </a>
 </p>
